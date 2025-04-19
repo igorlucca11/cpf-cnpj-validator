@@ -11,16 +11,19 @@ ENV VITE_APP_API_BASE_URL=/api
 ###########################################
 FROM base AS dev
 ENV NODE_ENV=development
-RUN npm install --include=dev
 COPY . .
-CMD ["npm", "run", "dev"]  # Vite dev server
+RUN npm install --include=dev
+RUN echo "📦 Pacotes instalados:" && \
+ls -la node_modules/@tabler/icons-react
+CMD ["npm", "run", "dev"]  
+# Vite dev server
 
 ###########################################
 # Estágio 3: Builder (compilação)         #
 ###########################################
 FROM base AS builder
 RUN npm ci
-COPY . .
+COPY . . 
 RUN npm run build  # Gera arquivos em /dist
 
 ###########################################

@@ -10,7 +10,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@tabler/core": "./node_modules/@tabler/core",
+      '@assets': '/src/assets'
     },
   },
+  
 });
