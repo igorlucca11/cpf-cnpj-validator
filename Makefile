@@ -10,7 +10,7 @@ dev:
 	@echo "🔧 Iniciando ambiente de desenvolvimento..."
 	@BUILD_STAGE=$(BUILD_STAGE) FRONTEND_BUILD_STAGE=$(FRONTEND_BUILD_STAGE) NODE_ENV=$(NODE_ENV) \
 	BACKEND_PORT=$(BACKEND_PORT) FRONTEND_PORT=$(FRONTEND_PORT) \
-	docker-compose up --build
+	docker-compose build --no-cache && docker-compose up
 
 # Sobe tudo em modo produção
 prod:
