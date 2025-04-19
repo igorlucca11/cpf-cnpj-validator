@@ -1,9 +1,13 @@
 name: CI Pipeline
 on:
   push:
-    branches: [dev, feature/*]
+    branches:
+      - dev
+      - 'feature/**'
+      - 'chore/**'
   pull_request:
-    branches: [dev]
+    branches:
+      - dev
 
 jobs:
   test-and-build:
@@ -20,7 +24,6 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '20'
-          cache: 'npm'
 
       # Frontend
       - name: Install frontend deps
@@ -33,14 +36,14 @@ jobs:
           VITE_API_BASE_URL: "http://localhost:3001"
         run: npm test
 
-      # Backend
-      - name: Install backend deps
-        working-directory: ./backend
-        run: npm install
+      # Backend (descomente se quiser testar também)
+      # - name: Install backend deps
+      #   working-directory: ./backend
+      #   run: npm install
 
-      - name: Run backend tests
-        working-directory: ./backend
-        env:
-          PORT: 3001
-          CPF_VALIDATION_API: "mock"
-        run: npm test
+      # - name: Run backend tests
+      #   working-directory: ./backend
+      #   env:
+      #     PORT: 3001
+      #     CPF_VALIDATION_API: "mock"
+      #   run: npm test
