@@ -1,9 +1,12 @@
 name: CI Pipeline
 on:
   push:
-    branches: [dev, feature/*]
+    branches:
+      - dev
+      - 'feature/**'
   pull_request:
-    branches: [dev]
+    branches:
+      - dev
 
 jobs:
   test-and-build:
@@ -23,9 +26,9 @@ jobs:
           cache: 'npm'
 
       # Frontend
-    - name: Install frontend deps
-      working-directory: ./frontend
-      run: npm ci
+      - name: Install frontend deps
+        working-directory: ./frontend
+        run: npm ci
 
       - name: Run frontend tests
         working-directory: ./frontend
@@ -33,7 +36,7 @@ jobs:
           VITE_API_BASE_URL: "http://localhost:3001"
         run: npm test
 
-      # # Backend
+      # Backend (descomente se quiser testar também)
       # - name: Install backend deps
       #   working-directory: ./backend
       #   run: npm install
