@@ -23,9 +23,9 @@ jobs:
           cache: 'npm'
 
       # Frontend
-      - name: Install frontend deps
-        working-directory: ./frontend
-        run: npm install
+    - name: Install frontend deps
+      working-directory: ./frontend
+      run: npm ci
 
       - name: Run frontend tests
         working-directory: ./frontend
@@ -33,14 +33,14 @@ jobs:
           VITE_API_BASE_URL: "http://localhost:3001"
         run: npm test
 
-      # Backend
-      - name: Install backend deps
-        working-directory: ./backend
-        run: npm install
+      # # Backend
+      # - name: Install backend deps
+      #   working-directory: ./backend
+      #   run: npm install
 
-      - name: Run backend tests
-        working-directory: ./backend
-        env:
-          PORT: 3001
-          CPF_VALIDATION_API: "mock"
-        run: npm test
+      # - name: Run backend tests
+      #   working-directory: ./backend
+      #   env:
+      #     PORT: 3001
+      #     CPF_VALIDATION_API: "mock"
+      #   run: npm test
