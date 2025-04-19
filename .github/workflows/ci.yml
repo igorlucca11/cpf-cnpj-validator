@@ -4,6 +4,7 @@ on:
     branches:
       - dev
       - 'feature/**'
+      - 'chore/**'
   pull_request:
     branches:
       - dev
