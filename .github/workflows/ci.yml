@@ -15,6 +15,9 @@ jobs:
     env:
       NODE_ENV: test
       CI: true
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_PULL_REQUEST_ID: ${{ github.event.pull_request.number }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
 
     steps:
       - name: Checkout code
@@ -24,26 +27,15 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '20'
+          cache: 'npm'
 
       # Frontend
       - name: Install frontend deps
         working-directory: ./frontend
         run: npm install
 
-      - name: Run frontend tests
+      - name: Run frontend tests with coverage
         working-directory: ./frontend
         env:
           VITE_API_BASE_URL: "http://localhost:3001"
-        run: npm test
-
-      # Backend (descomente se quiser testar também)
-      # - name: Install backend deps
-      #   working-directory: ./backend
-      #   run: npm install
-
-      # - name: Run backend tests
-      #   working-directory: ./backend
-      #   env:
-      #     PORT: 3001
-      #     CPF_VALIDATION_API: "mock"
-      #   run: npm test
+        run: npm run test:coverage-check
