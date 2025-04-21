@@ -6,6 +6,7 @@ import { Octokit } from '@octokit/rest';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Tipos para cobertura
 type CoverageMetric = {
   total: number;
   covered: number;
@@ -25,6 +26,28 @@ type FileCoverage = {
 
 type CoverageData = {
   [filePath: string]: FileCoverage;
+};
+
+// Tipos para resultados de testes
+type TestResult = {
+  name: string;
+  status: 'passed' | 'failed' | 'pending' | 'skipped';
+  duration?: number;
+  errors?: string[];
+};
+
+type TestSuite = {
+  name: string;
+  status: 'passed' | 'failed';
+  tests: TestResult[];
+};
+
+type TestReport = {
+  numTotalTests: number;
+  numPassedTests: number;
+  numFailedTests: number;
+  numPendingTests: number;
+  testResults: TestSuite[];
 };
 
 const MIN_COVERAGE = 75;
@@ -50,18 +73,28 @@ async function postCommentToPR(message: string) {
   }
 }
 
-async function checkCoverage() {
+async function getTestResults(): Promise<TestReport> {
+  const testResultsPath = path.resolve(__dirname, 'test-results.json');
+  
+  if (!fs.existsSync(testResultsPath)) {
+    throw new Error(`Test results file not found at: ${testResultsPath}`);
+  }
+
+  const rawData = await fs.promises.readFile(testResultsPath, 'utf-8');
+  return JSON.parse(rawData);
+}
+
+async function checkCoverageAndTests() {
   try {
+    // 1. Processar resultados dos testes
+    const testReport = await getTestResults();
+
+    // 2. Processar cobertura
     const coveragePath = path.resolve(__dirname, 'coverage', 'coverage-final.json');
-    
-    if (!fs.existsSync(coveragePath)) {
-      throw new Error(`Coverage file not found at: ${coveragePath}`);
-    }
+    const rawCoverageData = await fs.promises.readFile(coveragePath, 'utf-8');
+    const coverageData: CoverageData = JSON.parse(rawCoverageData);
 
-    const rawData = await fs.promises.readFile(coveragePath, 'utf-8');
-    const data: CoverageData = JSON.parse(rawData);
-
-    // Aggregate metrics from all files
+    // Calcular métricas de cobertura
     const aggregated = {
       statements: { total: 0, covered: 0, pct: 0 },
       branches: { total: 0, covered: 0, pct: 0 },
@@ -69,8 +102,7 @@ async function checkCoverage() {
       lines: { total: 0, covered: 0, pct: 0 }
     };
 
-    // Calculate totals
-    Object.values(data).forEach(file => {
+    Object.values(coverageData).forEach(file => {
       aggregated.statements.total += Object.keys(file.statementMap).length;
       aggregated.statements.covered += Object.values(file.s).filter(v => v > 0).length;
       
@@ -80,12 +112,11 @@ async function checkCoverage() {
       aggregated.functions.total += Object.keys(file.fnMap).length;
       aggregated.functions.covered += Object.values(file.f).filter(v => v > 0).length;
       
-      // For lines, we use statements as approximation
       aggregated.lines.total += Object.keys(file.statementMap).length;
       aggregated.lines.covered += Object.values(file.s).filter(v => v > 0).length;
     });
 
-    // Calculate percentages
+    // Calcular porcentagens
     aggregated.statements.pct = aggregated.statements.total > 0 
       ? Math.round((aggregated.statements.covered / aggregated.statements.total) * 100)
       : 0;
@@ -102,18 +133,54 @@ async function checkCoverage() {
       ? Math.round((aggregated.lines.covered / aggregated.lines.total) * 100)
       : 0;
 
-    // Check minimum coverage
-    const metrics = ['statements', 'branches', 'functions', 'lines'] as const;
-    let allPassed = true;
+    // 3. Gerar relatório detalhado
+    let commentBody = `## 🧪 Test Results\n\n`;
+    commentBody += `✅ ${testReport.numPassedTests} passed | ❌ ${testReport.numFailedTests} failed | ⏩ ${testReport.numPendingTests} skipped\n\n`;
 
-    let commentBody = `## 📊 Test Coverage Report\n\n`;
+    // Agrupar testes por status
+    const failedTests: TestResult[] = [];
+    const pendingTests: TestResult[] = [];
+
+    testReport.testResults.forEach(suite => {
+      suite.tests.forEach(test => {
+        if (test.status === 'failed') failedTests.push(test);
+        else if (test.status === 'pending' || test.status === 'skipped') pendingTests.push(test);
+      });
+    });
+
+    // Seção de testes que falharam
+    if (failedTests.length > 0) {
+      commentBody += `### ❌ Failed Tests:\n`;
+      failedTests.forEach(test => {
+        commentBody += `- **${test.name}**\n`;
+        if (test.errors?.length) {
+          commentBody += `  \`\`\`\n${test.errors.join('\n')}\n  \`\`\`\n`;
+        }
+      });
+      commentBody += '\n';
+    }
+
+    // Seção de testes ignorados
+    if (pendingTests.length > 0) {
+      commentBody += `### ⏩ Skipped Tests:\n`;
+      pendingTests.forEach(test => {
+        commentBody += `- ${test.name}\n`;
+      });
+      commentBody += '\n';
+    }
+
+    // 4. Adicionar relatório de cobertura
+    commentBody += `## 📊 Code Coverage Report\n\n`;
     commentBody += `| Metric      | Coverage | Status  |\n`;
     commentBody += `|-------------|----------|---------|\n`;
+
+    const metrics = ['statements', 'branches', 'functions', 'lines'] as const;
+    let allCoveragePassed = true;
 
     metrics.forEach(metric => {
       const coverage = aggregated[metric].pct;
       const passed = coverage >= MIN_COVERAGE;
-      if (!passed) allPassed = false;
+      if (!passed) allCoveragePassed = false;
 
       commentBody += `| ${metric.padEnd(11)} | ${coverage.toString().padStart(3)}% | ${passed ? '✅ Pass' : '❌ Fail'} |\n`;
     });
@@ -123,19 +190,20 @@ async function checkCoverage() {
 
     console.log(commentBody);
 
-    // Post to PR if in CI environment
+    // 5. Postar no PR se estiver em CI
     if (process.env.CI === 'true') {
       await postCommentToPR(commentBody);
     }
 
-    if (!allPassed) {
-      console.error('❌ Some metrics did not meet minimum coverage');
+    // 6. Finalizar com status adequado
+    if (testReport.numFailedTests > 0 || !allCoveragePassed) {
+      console.error('❌ Some tests failed or coverage metrics did not meet minimum');
       process.exit(1);
     }
 
-    console.log('✅ All coverage metrics passed!');
+    console.log('✅ All tests passed and coverage metrics met!');
   } catch (error) {
-    const errorMessage = `⚠️ Error checking coverage: ${error instanceof Error ? error.message : error}`;
+    const errorMessage = `⚠️ Error: ${error instanceof Error ? error.message : error}`;
     console.error(errorMessage);
     
     if (process.env.CI === 'true') {
@@ -146,4 +214,5 @@ async function checkCoverage() {
   }
 }
 
-checkCoverage();
+// Executar a verificação
+checkCoverageAndTests();
