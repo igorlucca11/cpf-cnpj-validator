@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getOctokit } from '@actions/github';
+import { Octokit } from '@octokit/rest';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,21 +24,25 @@ interface CoverageSummary {
 
 const MIN_COVERAGE = 75;
 
-async function postCommentToPR(coverageResults: string) {
+async function postCommentToPR(message: string) {
   if (!process.env.GITHUB_TOKEN || !process.env.GITHUB_PULL_REQUEST_ID) {
     console.log('Not in PR context, skipping comment');
     return;
   }
 
-  const octokit = getOctokit(process.env.GITHUB_TOKEN);
+  const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
   const [owner, repo] = process.env.GITHUB_REPOSITORY!.split('/');
 
-  await octokit.rest.issues.createComment({
-    owner,
-    repo,
-    issue_number: parseInt(process.env.GITHUB_PULL_REQUEST_ID!),
-    body: coverageResults
-  });
+  try {
+    await octokit.issues.createComment({
+      owner,
+      repo,
+      issue_number: Number(process.env.GITHUB_PULL_REQUEST_ID),
+      body: message
+    });
+  } catch (error) {
+    console.error('Failed to post comment:', error);
+  }
 }
 
 async function checkCoverage() {
@@ -46,7 +50,7 @@ async function checkCoverage() {
     const coveragePath = path.resolve(__dirname, 'coverage', 'coverage-summary.json');
     
     if (!fs.existsSync(coveragePath)) {
-      throw new Error(`Arquivo de cobertura não encontrado em: ${coveragePath}`);
+      throw new Error(`Coverage file not found at: ${coveragePath}`);
     }
 
     const rawData = await fs.promises.readFile(coveragePath, 'utf-8');
@@ -54,42 +58,40 @@ async function checkCoverage() {
 
     const metrics = ['statements', 'branches', 'functions', 'lines'] as const;
     let allPassed = true;
-    let coverageMessage = '## 📊 Test Coverage Results\n\n';
 
-    coverageMessage += '| Metric      | Coverage | Status |\n';
-    coverageMessage += '|-------------|----------|--------|\n';
+    let commentBody = `## 📊 Test Coverage Report\n\n`;
+    commentBody += `| Metric      | Coverage | Status  |\n`;
+    commentBody += `|-------------|----------|---------|\n`;
 
     metrics.forEach(metric => {
       const coverage = data.total[metric].pct;
       const passed = coverage >= MIN_COVERAGE;
-      
-      if (!passed) {
-        allPassed = false;
-      }
+      if (!passed) allPassed = false;
 
-      coverageMessage += `| ${metric.padEnd(11)} | ${coverage.toString().padStart(3)}% | ${passed ? '✅' : '❌'} |\n`;
+      commentBody += `| ${metric.padEnd(11)} | ${coverage.toString().padStart(3)}% | ${passed ? '✅ Pass' : '❌ Fail'} |\n`;
     });
 
-    coverageMessage += `\n**Minimum required coverage:** ${MIN_COVERAGE}%`;
+    commentBody += `\n**Minimum required coverage:** ${MIN_COVERAGE}%\n\n`;
+    commentBody += `_Generated at ${new Date().toISOString()}_`;
 
-    console.log(coverageMessage);
+    console.log(commentBody);
 
-    // Post to GitHub PR if in CI environment
-    if (process.env.CI && process.env.GITHUB_ACTIONS) {
-      await postCommentToPR(coverageMessage);
+    // Post to PR if in CI environment
+    if (process.env.CI === 'true') {
+      await postCommentToPR(commentBody);
     }
 
     if (!allPassed) {
-      console.error('⛔ Algumas métricas não atingiram a cobertura mínima');
+      console.error('❌ Some metrics did not meet minimum coverage');
       process.exit(1);
     }
 
-    console.log('🎉 Todas as métricas de cobertura foram atingidas!');
+    console.log('✅ All coverage metrics passed!');
   } catch (error) {
-    const errorMessage = `⚠️ Erro ao verificar cobertura: ${error instanceof Error ? error.message : error}`;
+    const errorMessage = `⚠️ Error checking coverage: ${error instanceof Error ? error.message : error}`;
     console.error(errorMessage);
     
-    if (process.env.CI && process.env.GITHUB_ACTIONS) {
+    if (process.env.CI === 'true') {
       await postCommentToPR(errorMessage);
     }
     
