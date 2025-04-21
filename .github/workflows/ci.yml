@@ -12,6 +12,9 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    permissions: 
+      pull-requests: write
+      contents: read
     env:
       NODE_ENV: test
       CI: true
