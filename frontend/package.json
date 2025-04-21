@@ -11,6 +11,8 @@
         "test:coverage-check": "vitest run --coverage && tsx check-coverage.ts"
     },
     "dependencies": {
+        "@actions/core": "^1.11.1",
+        "@actions/github": "^6.0.0",
         "@tabler/core": "^1.2.0",
         "@tabler/icons-react": "^3.31.0",
         "axios": "^1.6.7",
