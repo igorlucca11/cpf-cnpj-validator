@@ -6,21 +6,26 @@ import { Octokit } from '@octokit/rest';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-interface CoverageMetric {
+type CoverageMetric = {
   total: number;
   covered: number;
   skipped: number;
   pct: number;
-}
+};
 
-interface CoverageSummary {
-  total: {
-    lines: CoverageMetric;
-    statements: CoverageMetric;
-    functions: CoverageMetric;
-    branches: CoverageMetric;
-  };
-}
+type FileCoverage = {
+  path: string;
+  statementMap: Record<string, any>;
+  s: Record<string, number>;
+  fnMap: Record<string, any>;
+  f: Record<string, number>;
+  branchMap: Record<string, any>;
+  b: Record<string, number[]>;
+};
+
+type CoverageData = {
+  [filePath: string]: FileCoverage;
+};
 
 const MIN_COVERAGE = 75;
 
@@ -47,15 +52,57 @@ async function postCommentToPR(message: string) {
 
 async function checkCoverage() {
   try {
-    const coveragePath = path.resolve(__dirname, 'coverage', 'coverage-summary.json');
+    const coveragePath = path.resolve(__dirname, 'coverage', 'coverage-final.json');
     
     if (!fs.existsSync(coveragePath)) {
       throw new Error(`Coverage file not found at: ${coveragePath}`);
     }
 
     const rawData = await fs.promises.readFile(coveragePath, 'utf-8');
-    const data: CoverageSummary = JSON.parse(rawData);
+    const data: CoverageData = JSON.parse(rawData);
 
+    // Aggregate metrics from all files
+    const aggregated = {
+      statements: { total: 0, covered: 0, pct: 0 },
+      branches: { total: 0, covered: 0, pct: 0 },
+      functions: { total: 0, covered: 0, pct: 0 },
+      lines: { total: 0, covered: 0, pct: 0 }
+    };
+
+    // Calculate totals
+    Object.values(data).forEach(file => {
+      aggregated.statements.total += Object.keys(file.statementMap).length;
+      aggregated.statements.covered += Object.values(file.s).filter(v => v > 0).length;
+      
+      aggregated.branches.total += Object.keys(file.branchMap).length;
+      aggregated.branches.covered += Object.values(file.b).filter(arr => arr.some(v => v > 0)).length;
+      
+      aggregated.functions.total += Object.keys(file.fnMap).length;
+      aggregated.functions.covered += Object.values(file.f).filter(v => v > 0).length;
+      
+      // For lines, we use statements as approximation
+      aggregated.lines.total += Object.keys(file.statementMap).length;
+      aggregated.lines.covered += Object.values(file.s).filter(v => v > 0).length;
+    });
+
+    // Calculate percentages
+    aggregated.statements.pct = aggregated.statements.total > 0 
+      ? Math.round((aggregated.statements.covered / aggregated.statements.total) * 100)
+      : 0;
+      
+    aggregated.branches.pct = aggregated.branches.total > 0
+      ? Math.round((aggregated.branches.covered / aggregated.branches.total) * 100)
+      : 0;
+      
+    aggregated.functions.pct = aggregated.functions.total > 0
+      ? Math.round((aggregated.functions.covered / aggregated.functions.total) * 100)
+      : 0;
+      
+    aggregated.lines.pct = aggregated.lines.total > 0
+      ? Math.round((aggregated.lines.covered / aggregated.lines.total) * 100)
+      : 0;
+
+    // Check minimum coverage
     const metrics = ['statements', 'branches', 'functions', 'lines'] as const;
     let allPassed = true;
 
@@ -64,7 +111,7 @@ async function checkCoverage() {
     commentBody += `|-------------|----------|---------|\n`;
 
     metrics.forEach(metric => {
-      const coverage = data.total[metric].pct;
+      const coverage = aggregated[metric].pct;
       const passed = coverage >= MIN_COVERAGE;
       if (!passed) allPassed = false;
 
