@@ -27,15 +27,26 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '20'
-          cache: 'npm'
 
       # Frontend
       - name: Install frontend deps
         working-directory: ./frontend
         run: npm install
 
-      - name: Run frontend tests with coverage
+      - name: Run frontend tests
         working-directory: ./frontend
         env:
           VITE_API_BASE_URL: "http://localhost:3001"
-        run: npm run test:coverage-check
+        run: npm test:coverage-check
+
+      # Backend (descomente se quiser testar também)
+      # - name: Install backend deps
+      #   working-directory: ./backend
+      #   run: npm install
+
+      # - name: Run backend tests
+      #   working-directory: ./backend
+      #   env:
+      #     PORT: 3001
+      #     CPF_VALIDATION_API: "mock"
+      #   run: npm test
