@@ -9,10 +9,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": ["vitest", "@testing-library/jest-dom", "./src/vite-env.d.ts"]
   },
   "include": [
     "src",
-    "check-coverage.ts"
+    "check-coverage.ts",
+    "__tests__"
   ]
 }
