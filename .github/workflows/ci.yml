@@ -12,9 +12,15 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    permissions: 
+      pull-requests: write
+      contents: read
     env:
       NODE_ENV: test
       CI: true
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_PULL_REQUEST_ID: ${{ github.event.pull_request.number }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
 
     steps:
       - name: Checkout code
@@ -34,7 +40,7 @@ jobs:
         working-directory: ./frontend
         env:
           VITE_API_BASE_URL: "http://localhost:3001"
-        run: npm test
+        run: npm run test:coverage-check
 
       # Backend (descomente se quiser testar também)
       # - name: Install backend deps
