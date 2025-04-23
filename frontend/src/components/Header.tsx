@@ -9,7 +9,7 @@ const Header = () => {
             <a href="#">
               <IconSquareCheck size={24} color="green" />
             </a>
-            Validador de CPF/CNPJ
+            Buscador de CPF e CNPJ
           </h1>
           <div className="navbar-nav flex-row order-md-last">
             <div className="nav-item">
